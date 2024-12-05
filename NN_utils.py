@@ -25,31 +25,32 @@ class Lin_ONN(nn.Module):
         self.SLM_size = SLM_size
 
     def forward(self, X):
+        # Apply FFT (forward transform) and reuse X for storing the result
+        X = torch.fft.fft2(X)
         
-        # Apply FFT (forward transform)
-        X_fft = torch.fft.fft2(X)
-
-            # Resize using interpolation
-        X_fft = F.interpolate(
-            X_fft.real, size=(self.SLM_size, self.SLM_size), mode='bilinear', align_corners=False
-            ) + 1j * F.interpolate(
-        X_fft.imag, size=(self.SLM_size, self.SLM_size), mode='bilinear', align_corners=False
-            )   
-        # Create the complex exponential for phase modulation (e^i*theta)
+        # Apply FFT shift to center the low frequencies at 0, this is necessary because we want to multiply in the fourier domain
+        X = torch.fft.fftshift(X)
+        
+        # Resize using interpolation, separating real and imaginary parts
+        real = F.interpolate(X.real, size=(self.SLM_size, self.SLM_size), mode='bilinear', align_corners=False)
+        imag = F.interpolate(X.imag, size=(self.SLM_size, self.SLM_size), mode='bilinear', align_corners=False)
+        
+        # Combine real and imaginary parts into a complex tensor
+        X = real + 1j * imag
         # Apply phase modulation (element-wise multiplication in Fourier domain)
+        X *= torch.exp(1j * self.SLM_params)
 
-        X_fft = X_fft * torch.exp(1j * self.SLM_params)
-        
         # Apply Inverse FFT to bring it back to real space
-        X_fft = torch.fft.fft2(X_fft)
-        
-        # Now, apply the output layer which is camera detection
-        X_fft = torch.abs(X_fft)**2  
-        
-        # Output projection 
-        logits = X_fft
-        
+        X = torch.fft.ifft2(X)
+
+        # Compute intensity (magnitude squared) for camera detection
+        X = torch.abs(X) ** 2
+
+        # Output projection
+        logits = X
+
         return logits
+
     
     def count_parameters(self):
         """
