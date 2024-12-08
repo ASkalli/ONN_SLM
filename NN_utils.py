@@ -161,3 +161,14 @@ def generate_blaze_grating_phase(size, period, angle):
 
     return blaze_phase
     
+#class  for building train and test loaders so we can use other datasets with pytorch loop
+class Custom_dataset(torch.utils.data.Dataset):
+    def __init__(self, features, labels):
+        self.features = torch.tensor(features, dtype=torch.float32)
+        self.labels = torch.tensor(labels, dtype=torch.float32)  # Convert and squeeze labels
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+        return self.features[idx], self.labels[idx]
